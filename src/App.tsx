@@ -1,0 +1,779 @@
+import { motion } from "framer-motion";
+import {
+  Clock3,
+  Crown,
+  Flame,
+  Medal,
+  Star,
+  Target,
+  TrendingUp,
+  Trophy,
+  Users,
+} from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+
+const FULL_TIME_SERVERS = [
+  "Cat",
+  "Delayna",
+  "Don",
+  "Linda",
+  "Lorena",
+  "Lori",
+  "Nattalee",
+  "Sharon",
+];
+
+const PART_TIME_SERVERS = [
+  "Bennett",
+  "Dax",
+  "Gilbert",
+  "KC",
+  "Lindsay",
+  "MJ",
+  "Natasha",
+  "Sanaa",
+  "TJ",
+];
+
+// Better local UI components
+const Card = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div
+    className={`rounded-3xl border border-white/60 bg-white/90 shadow-[0_10px_35px_rgba(0,0,0,0.08)] backdrop-blur ${className}`}
+  >
+    {children}
+  </div>
+);
+
+const CardContent = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={className}>{children}</div>;
+
+const CardHeader = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={`border-b border-slate-100 ${className}`}>{children}</div>;
+
+const CardTitle = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={`font-black tracking-tight text-slate-900 ${className}`}>{children}</div>;
+
+const Button = ({
+  children,
+  className = "",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <button
+    {...props}
+    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 ${className}`}
+  >
+    {children}
+  </button>
+);
+
+const Input = ({
+  className = "",
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  className?: string;
+}) => (
+  <input
+    {...props}
+    className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-100 ${className}`}
+  />
+);
+
+// Live sheet CSV
+const GOOGLE_SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTQGiwFtsoYkziyPVccdtyyht6VjAcxcAebhql5xfs82VJTlmu0I-pv-Cb3AO2E_DxaLgq6nfAti6R6/pub?output=csv";
+
+const DEFAULT_TARGET = 45;
+const GAME_NAME = "Smitty's Red Hot Sales Showdown";
+const VENUE_NAME = "Smitty's at Market Mall";
+const STAGE_1_DATES = "April 1 – April 19";
+const STAGE_2_DATES = "April 20 – April 26";
+
+type CsvRow = Record<string, string>;
+
+type Row = {
+  rank: number;
+  server: string;
+  avg: number;
+  status: string;
+  shift: string;
+  stage: string;
+};
+
+type RankedRow = Row & {
+  teamRank: number;
+};
+
+type TeamFilter = "Full Time" | "Part Time";
+type StageFilter = "Stage 1" | "Stage 2";
+
+function parseCSV(text: string): CsvRow[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const lines = trimmed.split(/\r?\n/);
+  if (!lines.length) return [];
+
+  const parseLine = (line: string) => {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const next = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && next === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === "," && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+
+    result.push(current.trim());
+    return result;
+  };
+
+  const headers = parseLine(lines[0]).map((h) => h.toLowerCase());
+
+  return lines
+    .slice(1)
+    .filter(Boolean)
+    .map((line) => {
+      const values = parseLine(line);
+      const row: CsvRow = {};
+      headers.forEach((header, idx) => {
+        row[header] = values[idx] ?? "";
+      });
+      return row;
+    });
+}
+
+function rankBadge(rank: number) {
+  if (rank === 1) return "#1 🥇";
+  if (rank === 2) return "#2 🥈";
+  if (rank === 3) return "#3 🥉";
+  return `#${rank}`;
+}
+
+function statusLabel(rank: number) {
+  if (rank === 1) return "Top Seller";
+  if (rank === 2) return "Strong";
+  if (rank === 3) return "Rising";
+  if (rank <= 5) return "Close Behind";
+  return "Push";
+}
+
+function rowGlow(rank: number) {
+  if (rank === 1) return "from-yellow-100 to-orange-100 border-yellow-300";
+  if (rank === 2) return "from-slate-100 to-slate-50 border-slate-300";
+  if (rank === 3) return "from-amber-50 to-yellow-50 border-amber-200";
+  if (rank <= 5) return "from-emerald-50 to-white border-emerald-200";
+  return "from-white to-white border-slate-200";
+}
+
+function getFallbackRows(): Row[] {
+  const stage1Full = FULL_TIME_SERVERS.map((server, index) => ({
+    rank: index + 1,
+    server,
+    avg: 0,
+    status: "",
+    shift: "Full Time",
+    stage: "Stage 1",
+  }));
+
+  const stage1Part = PART_TIME_SERVERS.map((server, index) => ({
+    rank: index + 1,
+    server,
+    avg: 0,
+    status: "",
+    shift: "Part Time",
+    stage: "Stage 1",
+  }));
+
+  const stage2Full = FULL_TIME_SERVERS.slice(0, 3).map((server, index) => ({
+    rank: index + 1,
+    server,
+    avg: 0,
+    status: "",
+    shift: "Full Time",
+    stage: "Stage 2",
+  }));
+
+  const stage2Part = PART_TIME_SERVERS.slice(0, 3).map((server, index) => ({
+    rank: index + 1,
+    server,
+    avg: 0,
+    status: "",
+    shift: "Part Time",
+    stage: "Stage 2",
+  }));
+
+  return [...stage1Full, ...stage1Part, ...stage2Full, ...stage2Part];
+}
+
+export default function BillBoosterLiveScoreboard() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>("Full Time");
+  const [stageFilter, setStageFilter] = useState<StageFilter>("Stage 1");
+  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleString());
+
+  const loadData = async () => {
+    if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes("PASTE_YOUR")) {
+      setRows(getFallbackRows());
+      setLastUpdated(new Date().toLocaleString());
+      setError("");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await fetch(GOOGLE_SHEET_CSV_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Could not load live data (${res.status})`);
+
+      const text = await res.text();
+      const parsed = parseCSV(text)
+        .map((row) => ({
+          rank: Number(row.rank || 0),
+          server: row.server || "",
+          avg: Number(row.avg || 0),
+          status: row.status || "",
+          shift: row.shift || "",
+          stage: row.stage || "Stage 1",
+        }))
+        .filter((r) => r.server);
+
+      setRows(parsed.length ? parsed : getFallbackRows());
+      setLastUpdated(new Date().toLocaleString());
+    } catch (e) {
+      setRows(getFallbackRows());
+      setError(e instanceof Error ? e.message : "Unable to load live data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    const interval = window.setInterval(loadData, 60000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const stageRows = useMemo(() => {
+    return rows.filter((r) => (r.stage || "Stage 1") === stageFilter);
+  }, [rows, stageFilter]);
+
+  const fullTimeStageRows = useMemo(() => {
+    return stageRows
+      .filter((r) => r.shift === "Full Time")
+      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
+  }, [stageRows]);
+
+  const partTimeStageRows = useMemo(() => {
+    return stageRows
+      .filter((r) => r.shift === "Part Time")
+      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
+  }, [stageRows]);
+
+  const teamRows = useMemo<RankedRow[]>(() => {
+    const serverList = teamFilter === "Full Time" ? FULL_TIME_SERVERS : PART_TIME_SERVERS;
+    const actualRows = stageRows.filter((r) => r.shift === teamFilter);
+
+    const mergedRows: Row[] = serverList.map((serverName) => {
+      const existing = actualRows.find((r) => r.server === serverName);
+
+      return (
+        existing || {
+          rank: 999,
+          server: serverName,
+          avg: 0,
+          status: "",
+          shift: teamFilter,
+          stage: stageFilter,
+        }
+      );
+    });
+
+    const sorted = mergedRows.sort((a, b) => {
+      if (b.avg !== a.avg) return b.avg - a.avg;
+      return a.server.localeCompare(b.server);
+    });
+
+    return sorted.map((row, index) => ({
+      ...row,
+      teamRank: index + 1,
+    }));
+  }, [stageRows, teamFilter, stageFilter]);
+
+  const filteredRows = useMemo(() => {
+    return teamRows.filter((r) => r.server.toLowerCase().includes(search.toLowerCase()));
+  }, [teamRows, search]);
+
+  const champion = teamRows[0];
+  const top5 = teamRows.slice(0, 5);
+
+  const stageBannerText =
+    stageFilter === "Stage 1"
+      ? `${STAGE_1_DATES} • Opening Round • Top 3 from each team qualify`
+      : `${STAGE_2_DATES} • Final Qualifier Week • Rank #1 in each team wins`;
+
+  const sectionTitle =
+    stageFilter === "Stage 2" ? `${teamFilter} Qualified Servers` : `${teamFilter} Top Performers`;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-rose-50 to-orange-50 px-3 py-4 sm:px-4 md:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl border border-red-200 bg-white/80 p-4 shadow-xl backdrop-blur sm:p-5 md:p-6"
+        >
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-red-600">
+                <span className="text-2xl">🥞</span>
+                <Flame className="h-6 w-6" />
+                <span className="text-sm font-semibold uppercase tracking-[0.25em]">
+                  {GAME_NAME}
+                </span>
+                <span className="text-2xl">🍳</span>
+              </div>
+
+              <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl md:text-5xl">
+                {VENUE_NAME} Live Leaderboard
+              </h1>
+
+              <p className="mt-2 text-sm text-slate-600 sm:text-base md:text-lg">
+                {stageFilter === "Stage 1"
+                  ? `${STAGE_1_DATES} • Smart upselling. Bigger bills. Better results. ❤️`
+                  : `${STAGE_2_DATES} • Qualified servers battle for the win. 🏆`}
+              </p>
+
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                <Button
+                  onClick={() => setStageFilter("Stage 1")}
+                  className={`min-h-11 rounded-2xl border ${
+                    stageFilter === "Stage 1"
+                      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                  }`}
+                >
+                  🥞 Stage 1
+                </Button>
+
+                <Button
+                  onClick={() => setStageFilter("Stage 2")}
+                  className={`min-h-11 rounded-2xl border ${
+                    stageFilter === "Stage 2"
+                      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                  }`}
+                >
+                  🏆 Stage 2
+                </Button>
+
+                <Button
+                  onClick={() => setTeamFilter("Full Time")}
+                  className={`min-h-11 rounded-2xl border ${
+                    teamFilter === "Full Time"
+                      ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
+                      : "border-red-200 bg-white text-red-700 hover:bg-red-50"
+                  }`}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Full Time Team
+                </Button>
+
+                <Button
+                  onClick={() => setTeamFilter("Part Time")}
+                  className={`min-h-11 rounded-2xl border ${
+                    teamFilter === "Part Time"
+                      ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
+                      : "border-red-200 bg-white text-red-700 hover:bg-red-50"
+                  }`}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Part Time Team
+                </Button>
+
+                <div className="rounded-2xl border border-red-100 bg-white/90 px-4 py-3 text-xs font-semibold text-slate-700 shadow-sm sm:text-sm">
+                  Showing: <span className="text-red-700">{teamFilter}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <Card className="rounded-2xl border-red-200 bg-red-50/70 shadow-sm">
+                <CardContent className="flex items-start gap-3 p-3 sm:items-center sm:p-4">
+                  <span className="text-xl">🎯</span>
+                  <Target className="h-5 w-5 text-red-600" />
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
+                      Today Target
+                    </div>
+                    <div className="text-lg font-bold text-slate-900 sm:text-xl">
+                      ${DEFAULT_TARGET.toFixed(0)}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border-red-200 bg-white shadow-sm">
+                <CardContent className="flex items-start gap-3 p-3 sm:items-center sm:p-4">
+                  <span className="text-xl">⏰</span>
+                  <Clock3 className="h-5 w-5 text-red-600" />
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
+                      Last Updated
+                    </div>
+                    <div className="text-xs font-semibold leading-5 text-slate-900 sm:text-sm">
+                      {lastUpdated}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border-red-200 bg-white shadow-sm">
+                <CardContent className="flex items-start gap-3 p-3 sm:items-center sm:p-4">
+                  <span className="text-xl">📈</span>
+                  <TrendingUp className="h-5 w-5 text-red-600" />
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
+                      Servers Ranked
+                    </div>
+                    <div className="text-lg font-bold text-slate-900 sm:text-xl">
+                      {teamRows.length}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="rounded-3xl border border-red-200 bg-gradient-to-r from-red-600 via-rose-600 to-orange-500 text-white shadow-xl">
+            <CardContent className="flex flex-col gap-3 p-4 sm:p-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.3em] text-red-100">
+                  Live Stage Banner
+                </div>
+                <div className="mt-1 text-xl font-black sm:text-2xl">{stageFilter}</div>
+                <div className="mt-1 text-xs leading-5 text-red-50 sm:text-sm">
+                  {stageBannerText}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white/15 px-4 py-3 text-sm font-semibold backdrop-blur">
+                {teamFilter} view active
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {stageFilter === "Stage 2" && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="rounded-3xl border-2 border-red-200 bg-white/95 shadow-lg">
+              <CardHeader className="pb-2">
+                <CardTitle className="px-4 pt-4 text-xl font-black text-red-700">
+                  👑 Full Time Winner
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 p-4">
+                  <div className="text-xl font-black text-slate-900 sm:text-2xl">
+                    {fullTimeStageRows[0]?.server || "—"}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-600">Current Rank #1 • Full Time</div>
+                  <div className="mt-3 text-2xl font-black text-red-600 sm:text-3xl">
+                    ${Number(fullTimeStageRows[0]?.avg || 0).toFixed(2)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-3xl border-2 border-red-200 bg-white/95 shadow-lg">
+              <CardHeader className="pb-2">
+                <CardTitle className="px-4 pt-4 text-xl font-black text-red-700">
+                  👑 Part Time Winner
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 p-4">
+                  <div className="text-xl font-black text-slate-900 sm:text-2xl">
+                    {partTimeStageRows[0]?.server || "—"}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-600">Current Rank #1 • Part Time</div>
+                  <div className="mt-3 text-2xl font-black text-red-600 sm:text-3xl">
+                    ${Number(partTimeStageRows[0]?.avg || 0).toFixed(2)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {champion && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="overflow-hidden rounded-3xl border-2 border-red-300 bg-gradient-to-r from-red-100 via-rose-50 to-orange-100 shadow-xl">
+              <CardContent className="flex flex-col gap-4 p-4 sm:p-5 md:p-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-2xl bg-white/80 p-3 shadow">
+                    <Crown className="h-10 w-10 text-red-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold uppercase tracking-[0.25em] text-red-700">
+                      {GAME_NAME} Champion 👑
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 sm:text-3xl">
+                      {champion.server}
+                    </div>
+                    <div className="text-slate-600">
+                      Leading the {teamFilter} challenge at {VENUE_NAME} with the highest live
+                      average check.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white px-4 py-3 text-center shadow sm:px-6 sm:py-4">
+                  <div className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                    Avg Check
+                  </div>
+                  <div className="text-3xl font-black text-red-600 sm:text-4xl">
+                    ${champion.avg.toFixed(2)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        <div className="grid gap-6 2xl:grid-cols-[1.2fr_0.8fr]">
+          <Card className="rounded-3xl border-orange-200 bg-white/85 shadow-xl">
+            <CardHeader className="pb-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between px-4 pt-4">
+                <CardTitle className="flex items-center gap-2 text-xl font-black sm:text-2xl">
+                  <Trophy className="h-6 w-6 text-orange-600" />
+                  {sectionTitle}
+                </CardTitle>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={`Search ${teamFilter.toLowerCase()} server`}
+                    className="w-full sm:max-w-xs"
+                  />
+                  <Button
+                    onClick={loadData}
+                    className="min-h-11 rounded-2xl bg-orange-600 text-white hover:bg-orange-700"
+                  >
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-3 p-4">
+              {loading && <div className="text-sm text-slate-500">Refreshing live scores...</div>}
+
+              {error && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              {(stageFilter === "Stage 2" ? teamRows : top5).map((row, index) => (
+                <motion.div
+                  key={`${row.server}-${row.teamRank}`}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(
+                    row.teamRank
+                  )}`}
+                >
+                  <div className="text-lg font-black text-slate-900 sm:text-xl">
+                    {rankBadge(row.teamRank)}
+                  </div>
+                  <div>
+                    <div className="text-base font-bold text-slate-900 sm:text-lg">
+                      {row.server}
+                    </div>
+                    <div className="text-sm text-slate-500">{row.shift}</div>
+                  </div>
+                  <div className="text-left text-xl font-black text-orange-600 sm:text-right sm:text-2xl">
+                    ${row.avg.toFixed(2)}
+                  </div>
+                  <div className="text-left text-sm font-semibold text-slate-700 sm:text-right">
+                    {statusLabel(row.teamRank)}
+                  </div>
+                </motion.div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl border-orange-200 bg-white/85 shadow-xl">
+            <CardHeader className="px-4 pt-4">
+              <CardTitle className="flex items-center gap-2 text-xl font-black sm:text-2xl">
+                <Star className="h-6 w-6 text-orange-600" />
+                {teamFilter} Quick View
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="space-y-4 p-4">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="text-sm font-bold uppercase tracking-wide text-emerald-700">
+                  Top 3 Status
+                </div>
+                <div className="mt-2 space-y-2 text-sm text-slate-700">
+                  <div>🥇 Rank 1 = Top Seller</div>
+                  <div>🥈 Rank 2 = Strong</div>
+                  <div>🥉 Rank 3 = Rising</div>
+                  <div>⭐ Rank 4–5 = Close Behind</div>
+                  <div>⚡ Rank 6+ = Push</div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                <div className="text-sm font-bold uppercase tracking-wide text-orange-700">
+                  Competition Rule
+                </div>
+                <p className="mt-2 text-sm text-slate-700">
+                  {stageFilter === "Stage 1"
+                    ? `Rankings at ${VENUE_NAME} are based on average check, not total sales. Top 3 from each team qualify for Stage 2.`
+                    : `Stage 2 shows only qualified servers. Rank #1 in Full Time and Rank #1 in Part Time become the winners.`}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  Best Upsell Reminder
+                </div>
+                <p className="mt-2 text-sm text-slate-700">
+                  Suggest one food upgrade and one drink add-on at every table at Smitty's at
+                  Market Mall.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="rounded-3xl border-orange-200 bg-white/85 shadow-xl">
+          <CardHeader className="px-4 pt-4">
+            <CardTitle className="flex items-center gap-2 text-xl font-black sm:text-2xl">
+              <Medal className="h-6 w-6 text-orange-600" />
+              {teamFilter} Rankings
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="p-4">
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
+                <thead>
+                  <tr className="text-left text-sm uppercase tracking-wide text-slate-500">
+                    <th className="px-4">Rank</th>
+                    <th className="px-4">Server</th>
+                    <th className="px-4">Team</th>
+                    <th className="px-4 text-right">Avg Check</th>
+                    <th className="px-4 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, index) => (
+                    <motion.tr
+                      key={`${row.server}-table-${row.teamRank}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.02 }}
+                      className={`rounded-2xl border bg-gradient-to-r ${rowGlow(row.teamRank)}`}
+                    >
+                      <td className="rounded-l-2xl border-y border-l px-4 py-4 font-black text-slate-900">
+                        {rankBadge(row.teamRank)}
+                      </td>
+                      <td className="border-y px-4 py-4 font-semibold text-slate-900">
+                        {row.server}
+                      </td>
+                      <td className="border-y px-4 py-4 text-slate-600">{row.shift}</td>
+                      <td className="border-y px-4 py-4 text-right font-black text-orange-600">
+                        ${row.avg.toFixed(2)}
+                      </td>
+                      <td className="rounded-r-2xl border-y border-r px-4 py-4 text-right font-semibold text-slate-700">
+                        {statusLabel(row.teamRank)}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-3 lg:hidden">
+              {filteredRows.map((row, index) => (
+                <motion.div
+                  key={`${row.server}-mobile-${row.teamRank}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.02 }}
+                  className={`rounded-2xl border bg-gradient-to-r p-4 ${rowGlow(row.teamRank)}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-lg font-black text-slate-900">
+                        {rankBadge(row.teamRank)}
+                      </div>
+                      <div className="mt-1 text-base font-bold text-slate-900">{row.server}</div>
+                      <div className="text-sm text-slate-500">{row.shift}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-black text-orange-600">
+                        ${row.avg.toFixed(2)}
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-slate-700">
+                        {statusLabel(row.teamRank)}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
