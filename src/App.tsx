@@ -35,7 +35,6 @@ const PART_TIME_SERVERS = [
   "TJ",
 ];
 
-// Better local UI components
 const Card = ({
   children,
   className = "",
@@ -102,7 +101,7 @@ const Input = ({
   />
 );
 
-// Live sheet CSV
+// IMPORTANT: use the CSV publish link, not pubhtml
 const GOOGLE_SHEET_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vStVv5Qaa-qh05Bn6dCIpj4fNA8bcsYBenHusdIaGLGEej-Hx84SVNgJdWoDAq4jfYp7txl_IS6BOgj/pub?gid=2023589107&single=true&output=csv";
 
@@ -180,6 +179,12 @@ function parseCSV(text: string): CsvRow[] {
     });
 }
 
+function safeNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const n = Number(String(value ?? "").replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
 function rankBadge(rank: number) {
   if (rank === 1) return "#1 🥇";
   if (rank === 2) return "#2 🥈";
@@ -203,9 +208,9 @@ function rowGlow(rank: number) {
   return "from-white to-white border-slate-200";
 }
 
-function getFallbackRows(): Row[] {
-  const stage1Full = FULL_TIME_SERVERS.map((server, index) => ({
-    rank: index + 1,
+function buildFallbackRows(): Row[] {
+  const stage1Full = FULL_TIME_SERVERS.map((server) => ({
+    rank: 999,
     server,
     avg: 0,
     status: "",
@@ -213,8 +218,8 @@ function getFallbackRows(): Row[] {
     stage: "Stage 1",
   }));
 
-  const stage1Part = PART_TIME_SERVERS.map((server, index) => ({
-    rank: index + 1,
+  const stage1Part = PART_TIME_SERVERS.map((server) => ({
+    rank: 999,
     server,
     avg: 0,
     status: "",
@@ -222,25 +227,7 @@ function getFallbackRows(): Row[] {
     stage: "Stage 1",
   }));
 
-  const stage2Full = FULL_TIME_SERVERS.slice(0, 3).map((server, index) => ({
-    rank: index + 1,
-    server,
-    avg: 0,
-    status: "",
-    shift: "Full Time",
-    stage: "Stage 2",
-  }));
-
-  const stage2Part = PART_TIME_SERVERS.slice(0, 3).map((server, index) => ({
-    rank: index + 1,
-    server,
-    avg: 0,
-    status: "",
-    shift: "Part Time",
-    stage: "Stage 2",
-  }));
-
-  return [...stage1Full, ...stage1Part, ...stage2Full, ...stage2Part];
+  return [...stage1Full, ...stage1Part];
 }
 
 export default function BillBoosterLiveScoreboard() {
@@ -254,9 +241,9 @@ export default function BillBoosterLiveScoreboard() {
 
   const loadData = async () => {
     if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes("PASTE_YOUR")) {
-      setRows(getFallbackRows());
+      setRows(buildFallbackRows());
       setLastUpdated(new Date().toLocaleString());
-      setError("");
+      setError("CSV link not added yet.");
       return;
     }
 
@@ -270,19 +257,19 @@ export default function BillBoosterLiveScoreboard() {
       const text = await res.text();
       const parsed = parseCSV(text)
         .map((row) => ({
-          rank: Number(row.rank || 0),
-          server: row.server || "",
-          avg: Number(row.avg || 0),
-          status: row.status || "",
-          shift: row.shift || "",
-          stage: row.stage || "Stage 1",
+          rank: safeNumber(row.rank),
+          server: (row.server || "").trim(),
+          avg: safeNumber(row.avg),
+          status: (row.status || "").trim(),
+          shift: (row.shift || "").trim(),
+          stage: (row.stage || "Stage 1").trim(),
         }))
-        .filter((r) => r.server);
+        .filter((r) => r.server && r.shift && r.stage);
 
-      setRows(parsed.length ? parsed : getFallbackRows());
+      setRows(parsed.length ? parsed : buildFallbackRows());
       setLastUpdated(new Date().toLocaleString());
     } catch (e) {
-      setRows(getFallbackRows());
+      setRows(buildFallbackRows());
       setError(e instanceof Error ? e.message : "Unable to load live data.");
     } finally {
       setLoading(false);
@@ -296,28 +283,31 @@ export default function BillBoosterLiveScoreboard() {
   }, []);
 
   const stageRows = useMemo(() => {
-    return rows.filter((r) => (r.stage || "Stage 1") === stageFilter);
+    return rows.filter((r) => r.stage === stageFilter);
   }, [rows, stageFilter]);
 
-  const fullTimeStageRows = useMemo(() => {
-    return stageRows
-      .filter((r) => r.shift === "Full Time")
-      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
-  }, [stageRows]);
-
-  const partTimeStageRows = useMemo(() => {
-    return stageRows
-      .filter((r) => r.shift === "Part Time")
-      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
-  }, [stageRows]);
+  const qualifiedRows = useMemo(() => {
+    return stageRows.filter((r) => r.shift === teamFilter);
+  }, [stageRows, teamFilter]);
 
   const teamRows = useMemo<RankedRow[]>(() => {
+    if (stageFilter === "Stage 2") {
+      const sortedStage2 = [...qualifiedRows].sort((a, b) => {
+        if (b.avg !== a.avg) return b.avg - a.avg;
+        return a.server.localeCompare(b.server);
+      });
+
+      return sortedStage2.map((row, index) => ({
+        ...row,
+        teamRank: index + 1,
+      }));
+    }
+
     const serverList = teamFilter === "Full Time" ? FULL_TIME_SERVERS : PART_TIME_SERVERS;
-    const actualRows = stageRows.filter((r) => r.shift === teamFilter);
+    const actualRows = qualifiedRows;
 
     const mergedRows: Row[] = serverList.map((serverName) => {
       const existing = actualRows.find((r) => r.server === serverName);
-
       return (
         existing || {
           rank: 999,
@@ -325,7 +315,7 @@ export default function BillBoosterLiveScoreboard() {
           avg: 0,
           status: "",
           shift: teamFilter,
-          stage: stageFilter,
+          stage: "Stage 1",
         }
       );
     });
@@ -339,11 +329,23 @@ export default function BillBoosterLiveScoreboard() {
       ...row,
       teamRank: index + 1,
     }));
-  }, [stageRows, teamFilter, stageFilter]);
+  }, [qualifiedRows, stageFilter, teamFilter]);
 
   const filteredRows = useMemo(() => {
     return teamRows.filter((r) => r.server.toLowerCase().includes(search.toLowerCase()));
   }, [teamRows, search]);
+
+  const fullTimeStage2Rows = useMemo(() => {
+    return rows
+      .filter((r) => r.stage === "Stage 2" && r.shift === "Full Time")
+      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
+  }, [rows]);
+
+  const partTimeStage2Rows = useMemo(() => {
+    return rows
+      .filter((r) => r.stage === "Stage 2" && r.shift === "Part Time")
+      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
+  }, [rows]);
 
   const champion = teamRows[0];
   const top5 = teamRows.slice(0, 5);
@@ -517,11 +519,11 @@ export default function BillBoosterLiveScoreboard() {
               <CardContent className="p-4">
                 <div className="rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 p-4">
                   <div className="text-xl font-black text-slate-900 sm:text-2xl">
-                    {fullTimeStageRows[0]?.server || "—"}
+                    {fullTimeStage2Rows[0]?.server || "—"}
                   </div>
                   <div className="mt-1 text-sm text-slate-600">Current Rank #1 • Full Time</div>
                   <div className="mt-3 text-2xl font-black text-red-600 sm:text-3xl">
-                    ${Number(fullTimeStageRows[0]?.avg || 0).toFixed(2)}
+                    ${safeNumber(fullTimeStage2Rows[0]?.avg).toFixed(2)}
                   </div>
                 </div>
               </CardContent>
@@ -536,11 +538,11 @@ export default function BillBoosterLiveScoreboard() {
               <CardContent className="p-4">
                 <div className="rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 p-4">
                   <div className="text-xl font-black text-slate-900 sm:text-2xl">
-                    {partTimeStageRows[0]?.server || "—"}
+                    {partTimeStage2Rows[0]?.server || "—"}
                   </div>
                   <div className="mt-1 text-sm text-slate-600">Current Rank #1 • Part Time</div>
                   <div className="mt-3 text-2xl font-black text-red-600 sm:text-3xl">
-                    ${Number(partTimeStageRows[0]?.avg || 0).toFixed(2)}
+                    ${safeNumber(partTimeStage2Rows[0]?.avg).toFixed(2)}
                   </div>
                 </div>
               </CardContent>
@@ -564,8 +566,7 @@ export default function BillBoosterLiveScoreboard() {
                       {champion.server}
                     </div>
                     <div className="text-slate-600">
-                      Leading the {teamFilter} challenge at {VENUE_NAME} with the highest live
-                      average check.
+                      Leading the {teamFilter} challenge at {VENUE_NAME} with the highest live average check.
                     </div>
                   </div>
                 </div>
@@ -575,7 +576,7 @@ export default function BillBoosterLiveScoreboard() {
                     Avg Check
                   </div>
                   <div className="text-3xl font-black text-red-600 sm:text-4xl">
-                    ${champion.avg.toFixed(2)}
+                    ${safeNumber(champion.avg).toFixed(2)}
                   </div>
                 </div>
               </CardContent>
@@ -611,22 +612,19 @@ export default function BillBoosterLiveScoreboard() {
 
             <CardContent className="space-y-3 p-4">
               {loading && <div className="text-sm text-slate-500">Refreshing live scores...</div>}
-
               {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {error}
                 </div>
               )}
 
-              {(stageFilter === "Stage 2" ? teamRows : top5).map((row, index) => (
+              {(stageFilter === "Stage 2" ? filteredRows : filteredRows.slice(0, 5)).map((row, index) => (
                 <motion.div
                   key={`${row.server}-${row.teamRank}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(
-                    row.teamRank
-                  )}`}
+                  className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(row.teamRank)}`}
                 >
                   <div className="text-lg font-black text-slate-900 sm:text-xl">
                     {rankBadge(row.teamRank)}
@@ -638,7 +636,7 @@ export default function BillBoosterLiveScoreboard() {
                     <div className="text-sm text-slate-500">{row.shift}</div>
                   </div>
                   <div className="text-left text-xl font-black text-orange-600 sm:text-right sm:text-2xl">
-                    ${row.avg.toFixed(2)}
+                    ${safeNumber(row.avg).toFixed(2)}
                   </div>
                   <div className="text-left text-sm font-semibold text-slate-700 sm:text-right">
                     {statusLabel(row.teamRank)}
@@ -686,8 +684,7 @@ export default function BillBoosterLiveScoreboard() {
                   Best Upsell Reminder
                 </div>
                 <p className="mt-2 text-sm text-slate-700">
-                  Suggest one food upgrade and one drink add-on at every table at Smitty's at
-                  Market Mall.
+                  Suggest one food upgrade and one drink add-on at every table at Smitty&apos;s at Market Mall.
                 </p>
               </div>
             </CardContent>
@@ -726,12 +723,10 @@ export default function BillBoosterLiveScoreboard() {
                       <td className="rounded-l-2xl border-y border-l px-4 py-4 font-black text-slate-900">
                         {rankBadge(row.teamRank)}
                       </td>
-                      <td className="border-y px-4 py-4 font-semibold text-slate-900">
-                        {row.server}
-                      </td>
+                      <td className="border-y px-4 py-4 font-semibold text-slate-900">{row.server}</td>
                       <td className="border-y px-4 py-4 text-slate-600">{row.shift}</td>
                       <td className="border-y px-4 py-4 text-right font-black text-orange-600">
-                        ${row.avg.toFixed(2)}
+                        ${safeNumber(row.avg).toFixed(2)}
                       </td>
                       <td className="rounded-r-2xl border-y border-r px-4 py-4 text-right font-semibold text-slate-700">
                         {statusLabel(row.teamRank)}
@@ -761,7 +756,7 @@ export default function BillBoosterLiveScoreboard() {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-black text-orange-600">
-                        ${row.avg.toFixed(2)}
+                        ${safeNumber(row.avg).toFixed(2)}
                       </div>
                       <div className="mt-1 text-sm font-semibold text-slate-700">
                         {statusLabel(row.teamRank)}
