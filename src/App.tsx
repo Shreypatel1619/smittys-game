@@ -104,7 +104,7 @@ const Input = ({
 
 // Live sheet CSV
 const GOOGLE_SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTUsN5XI53svO3Juamnc4L9TGiYa-scvgOspsEqmwWT0qU1NuAl5P5jNH5mOLW5SO2tBbwwWiICfNb6/pub?gid=1702852006&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vStVv5Qaa-qh05Bn6dCIpj4fNA8bcsYBenHusdIaGLGEej-Hx84SVNgJdWoDAq4jfYp7txl_IS6BOgj/pub?gid=2023589107&single=true&output=csv";
 
 const DEFAULT_TARGET = 45;
 const GAME_NAME = "Smitty's Red Hot Sales Showdown";
