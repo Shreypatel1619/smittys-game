@@ -1,16 +1,27 @@
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Clock3,
-  Crown,
-  Flame,
-  Medal,
-  Star,
-  Target,
-  TrendingUp,
   Trophy,
+  Flame,
+  Target,
+  Clock3,
+  Medal,
+  TrendingUp,
+  Crown,
+  Star,
   Users,
 } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+const GOOGLE_SHEET_CSV_URL = "PASTE_YOUR_PUBLISHED_GOOGLE_SHEET_CSV_URL_HERE";
+const DEFAULT_TARGET = 45;
+const DEFAULT_STAGE = "April 1–19 • Stage 1";
+const GAME_NAME = "Smitty's Red Hot Sales Showdown";
+const VENUE_NAME = "Smitty's at Market Mall";
+const STAGE_1_DATES = "April 1 – April 19";
+const STAGE_2_DATES = "April 20 – April 26";
 
 const FULL_TIME_SERVERS = [
   "Cat",
@@ -34,82 +45,6 @@ const PART_TIME_SERVERS = [
   "Sanaa",
   "TJ",
 ];
-
-const Card = ({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <div
-    className={`rounded-3xl border border-white/60 bg-white/90 shadow-[0_10px_35px_rgba(0,0,0,0.08)] backdrop-blur ${className}`}
-  >
-    {children}
-  </div>
-);
-
-const CardContent = ({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => <div className={className}>{children}</div>;
-
-const CardHeader = ({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => <div className={`border-b border-slate-100 ${className}`}>{children}</div>;
-
-const CardTitle = ({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => <div className={`font-black tracking-tight text-slate-900 ${className}`}>{children}</div>;
-
-const Button = ({
-  children,
-  className = "",
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <button
-    {...props}
-    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 ${className}`}
-  >
-    {children}
-  </button>
-);
-
-const Input = ({
-  className = "",
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & {
-  className?: string;
-}) => (
-  <input
-    {...props}
-    className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-100 ${className}`}
-  />
-);
-
-// IMPORTANT: use the CSV publish link, not pubhtml
-const GOOGLE_SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCVpIe1SLclYRteLHwaK2eCpmoua4rm7oaCIgd5h0MpKynAGZJoVWACexAeSGDMVn0u24Nf4O9Y_F8/pub?gid=1052393092&single=true&output=csv";
-
-const DEFAULT_TARGET = 45;
-const GAME_NAME = "Smitty's Red Hot Sales Showdown";
-const VENUE_NAME = "Smitty's at Market Mall";
-const STAGE_1_DATES = "April 1 – April 19";
-const STAGE_2_DATES = "April 20 – April 26";
 
 type CsvRow = Record<string, string>;
 
@@ -141,14 +76,14 @@ function parseCSV(text: string): CsvRow[] {
     let current = "";
     let inQuotes = false;
 
-    for (let i = 0; i < line.length; i++) {
+    for (let i = 0; i < line.length; i += 1) {
       const char = line[i];
       const next = line[i + 1];
 
       if (char === '"') {
         if (inQuotes && next === '"') {
           current += '"';
-          i++;
+          i += 1;
         } else {
           inQuotes = !inQuotes;
         }
@@ -164,7 +99,7 @@ function parseCSV(text: string): CsvRow[] {
     return result;
   };
 
-  const headers = parseLine(lines[0]).map((h) => h.toLowerCase());
+  const headers = parseLine(lines[0]).map((header) => header.toLowerCase());
 
   return lines
     .slice(1)
@@ -179,10 +114,10 @@ function parseCSV(text: string): CsvRow[] {
     });
 }
 
-function safeNumber(value: unknown) {
+function safeNumber(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const n = Number(String(value ?? "").replace(/[$,\s]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+  const parsed = Number(String(value ?? "").replace(/[$,\s]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function rankBadge(rank: number) {
@@ -209,25 +144,24 @@ function rowGlow(rank: number) {
 }
 
 function buildFallbackRows(): Row[] {
-  const stage1Full = FULL_TIME_SERVERS.map((server) => ({
-    rank: 999,
-    server,
-    avg: 0,
-    status: "",
-    shift: "Full Time",
-    stage: "Stage 1",
-  }));
-
-  const stage1Part = PART_TIME_SERVERS.map((server) => ({
-    rank: 999,
-    server,
-    avg: 0,
-    status: "",
-    shift: "Part Time",
-    stage: "Stage 1",
-  }));
-
-  return [...stage1Full, ...stage1Part];
+  return [
+    ...FULL_TIME_SERVERS.map((server) => ({
+      rank: 999,
+      server,
+      avg: 0,
+      status: "",
+      shift: "Full Time",
+      stage: "Stage 1",
+    })),
+    ...PART_TIME_SERVERS.map((server) => ({
+      rank: 999,
+      server,
+      avg: 0,
+      status: "",
+      shift: "Part Time",
+      stage: "Stage 1",
+    })),
+  ];
 }
 
 export default function BillBoosterLiveScoreboard() {
@@ -243,7 +177,7 @@ export default function BillBoosterLiveScoreboard() {
     if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes("PASTE_YOUR")) {
       setRows(buildFallbackRows());
       setLastUpdated(new Date().toLocaleString());
-      setError("CSV link not added yet.");
+      setError("");
       return;
     }
 
@@ -251,10 +185,12 @@ export default function BillBoosterLiveScoreboard() {
       setLoading(true);
       setError("");
 
-      const res = await fetch(GOOGLE_SHEET_CSV_URL, { cache: "no-store" });
-      if (!res.ok) throw new Error(`Could not load live data (${res.status})`);
+      const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Could not load live data (${response.status})`);
+      }
 
-      const text = await res.text();
+      const text = await response.text();
       const parsed = parseCSV(text)
         .map((row) => ({
           rank: safeNumber(row.rank),
@@ -264,13 +200,13 @@ export default function BillBoosterLiveScoreboard() {
           shift: (row.shift || "").trim(),
           stage: (row.stage || "Stage 1").trim(),
         }))
-        .filter((r) => r.server && r.shift && r.stage);
+        .filter((row) => row.server && row.shift && row.stage);
 
       setRows(parsed.length ? parsed : buildFallbackRows());
       setLastUpdated(new Date().toLocaleString());
-    } catch (e) {
+    } catch (err) {
       setRows(buildFallbackRows());
-      setError(e instanceof Error ? e.message : "Unable to load live data.");
+      setError(err instanceof Error ? err.message : "Unable to load live data.");
     } finally {
       setLoading(false);
     }
@@ -283,31 +219,30 @@ export default function BillBoosterLiveScoreboard() {
   }, []);
 
   const stageRows = useMemo(() => {
-    return rows.filter((r) => r.stage === stageFilter);
+    return rows.filter((row) => row.stage === stageFilter);
   }, [rows, stageFilter]);
-
-  const qualifiedRows = useMemo(() => {
-    return stageRows.filter((r) => r.shift === teamFilter);
-  }, [stageRows, teamFilter]);
 
   const teamRows = useMemo<RankedRow[]>(() => {
     if (stageFilter === "Stage 2") {
-      const sortedStage2 = [...qualifiedRows].sort((a, b) => {
-        if (b.avg !== a.avg) return b.avg - a.avg;
-        return a.server.localeCompare(b.server);
-      });
+      const qualified = stageRows
+        .filter((row) => row.shift === teamFilter)
+        .sort((a, b) => {
+          if (b.avg !== a.avg) return b.avg - a.avg;
+          return a.server.localeCompare(b.server);
+        })
+        .slice(0, 3); // ✅ FIX: only top 3 qualify
 
-      return sortedStage2.map((row, index) => ({
+      return qualified.map((row, index) => ({
         ...row,
         teamRank: index + 1,
       }));
     }
 
     const serverList = teamFilter === "Full Time" ? FULL_TIME_SERVERS : PART_TIME_SERVERS;
-    const actualRows = qualifiedRows;
+    const actualRows = stageRows.filter((row) => row.shift === teamFilter);
 
     const mergedRows: Row[] = serverList.map((serverName) => {
-      const existing = actualRows.find((r) => r.server === serverName);
+      const existing = actualRows.find((row) => row.server === serverName);
       return (
         existing || {
           rank: 999,
@@ -329,34 +264,24 @@ export default function BillBoosterLiveScoreboard() {
       ...row,
       teamRank: index + 1,
     }));
-  }, [qualifiedRows, stageFilter, teamFilter]);
+  }, [stageRows, stageFilter, teamFilter]);
 
   const filteredRows = useMemo(() => {
-    return teamRows.filter((r) => r.server.toLowerCase().includes(search.toLowerCase()));
+    return teamRows.filter((row) => row.server.toLowerCase().includes(search.toLowerCase()));
   }, [teamRows, search]);
 
-  const fullTimeStage2Rows = useMemo(() => {
-    return rows
-      .filter((r) => r.stage === "Stage 2" && r.shift === "Full Time")
-      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
-  }, [rows]);
-
-  const partTimeStage2Rows = useMemo(() => {
-    return rows
-      .filter((r) => r.stage === "Stage 2" && r.shift === "Part Time")
-      .sort((a, b) => b.avg - a.avg || a.server.localeCompare(b.server));
-  }, [rows]);
-
   const champion = teamRows[0];
-  const top5 = teamRows.slice(0, 5);
-
   const stageBannerText =
     stageFilter === "Stage 1"
       ? `${STAGE_1_DATES} • Opening Round • Top 3 from each team qualify`
-      : `${STAGE_2_DATES} • Final Qualifier Week • Rank #1 in each team wins`;
+      : `${STAGE_2_DATES} • Qualified servers battle for the win`;
 
   const sectionTitle =
-    stageFilter === "Stage 2" ? `${teamFilter} Qualified Servers` : `${teamFilter} Top Performers`;
+    stageFilter === "Stage 2"
+      ? `${teamFilter} Qualified Servers`
+      : `${teamFilter} Top Performers`;
+
+  const visibleCards = stageFilter === "Stage 2" ? filteredRows : filteredRows.slice(0, 5);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-rose-50 to-orange-50 px-3 py-4 sm:px-4 md:p-8">
@@ -383,17 +308,17 @@ export default function BillBoosterLiveScoreboard() {
 
               <p className="mt-2 text-sm text-slate-600 sm:text-base md:text-lg">
                 {stageFilter === "Stage 1"
-                  ? `${STAGE_1_DATES} • Smart upselling. Bigger bills. Better results. ❤️`
+                  ? `${DEFAULT_STAGE} • Smart upselling. Bigger bills. Better results. ❤️`
                   : `${STAGE_2_DATES} • Qualified servers battle for the win. 🏆`}
               </p>
 
               <div className="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
                 <Button
                   onClick={() => setStageFilter("Stage 1")}
-                  className={`min-h-11 rounded-2xl border ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
                     stageFilter === "Stage 1"
-                      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                      ? "bg-slate-900 text-white hover:bg-slate-800"
+                      : "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
                   }`}
                 >
                   🥞 Stage 1
@@ -401,10 +326,10 @@ export default function BillBoosterLiveScoreboard() {
 
                 <Button
                   onClick={() => setStageFilter("Stage 2")}
-                  className={`min-h-11 rounded-2xl border ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
                     stageFilter === "Stage 2"
-                      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                      ? "bg-slate-900 text-white hover:bg-slate-800"
+                      : "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
                   }`}
                 >
                   🏆 Stage 2
@@ -412,26 +337,24 @@ export default function BillBoosterLiveScoreboard() {
 
                 <Button
                   onClick={() => setTeamFilter("Full Time")}
-                  className={`min-h-11 rounded-2xl border ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
                     teamFilter === "Full Time"
-                      ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
-                      : "border-red-200 bg-white text-red-700 hover:bg-red-50"
+                      ? "bg-red-600 text-white hover:bg-red-700"
+                      : "border border-red-200 bg-white text-red-700 hover:bg-red-50"
                   }`}
                 >
-                  <Users className="mr-2 h-4 w-4" />
-                  Full Time Team
+                  <Users className="mr-2 h-4 w-4" /> Full Time Team
                 </Button>
 
                 <Button
                   onClick={() => setTeamFilter("Part Time")}
-                  className={`min-h-11 rounded-2xl border ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
                     teamFilter === "Part Time"
-                      ? "border-red-600 bg-red-600 text-white hover:bg-red-700"
-                      : "border-red-200 bg-white text-red-700 hover:bg-red-50"
+                      ? "bg-red-600 text-white hover:bg-red-700"
+                      : "border border-red-200 bg-white text-red-700 hover:bg-red-50"
                   }`}
                 >
-                  <Users className="mr-2 h-4 w-4" />
-                  Part Time Team
+                  <Users className="mr-2 h-4 w-4" /> Part Time Team
                 </Button>
 
                 <div className="rounded-2xl border border-red-100 bg-white/90 px-4 py-3 text-xs font-semibold text-slate-700 shadow-sm sm:text-sm">
@@ -508,48 +431,6 @@ export default function BillBoosterLiveScoreboard() {
           </Card>
         </motion.div>
 
-        {stageFilter === "Stage 2" && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="rounded-3xl border-2 border-red-200 bg-white/95 shadow-lg">
-              <CardHeader className="pb-2">
-                <CardTitle className="px-4 pt-4 text-xl font-black text-red-700">
-                  👑 Full Time Winner
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 p-4">
-                  <div className="text-xl font-black text-slate-900 sm:text-2xl">
-                    {fullTimeStage2Rows[0]?.server || "—"}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-600">Current Rank #1 • Full Time</div>
-                  <div className="mt-3 text-2xl font-black text-red-600 sm:text-3xl">
-                    ${safeNumber(fullTimeStage2Rows[0]?.avg).toFixed(2)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-3xl border-2 border-red-200 bg-white/95 shadow-lg">
-              <CardHeader className="pb-2">
-                <CardTitle className="px-4 pt-4 text-xl font-black text-red-700">
-                  👑 Part Time Winner
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 p-4">
-                  <div className="text-xl font-black text-slate-900 sm:text-2xl">
-                    {partTimeStage2Rows[0]?.server || "—"}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-600">Current Rank #1 • Part Time</div>
-                  <div className="mt-3 text-2xl font-black text-red-600 sm:text-3xl">
-                    ${safeNumber(partTimeStage2Rows[0]?.avg).toFixed(2)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {champion && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="overflow-hidden rounded-3xl border-2 border-red-300 bg-gradient-to-r from-red-100 via-rose-50 to-orange-100 shadow-xl">
@@ -587,16 +468,15 @@ export default function BillBoosterLiveScoreboard() {
         <div className="grid gap-6 2xl:grid-cols-[1.2fr_0.8fr]">
           <Card className="rounded-3xl border-orange-200 bg-white/85 shadow-xl">
             <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between px-4 pt-4">
+              <div className="flex flex-col gap-3 px-4 pt-4 lg:flex-row lg:items-center lg:justify-between">
                 <CardTitle className="flex items-center gap-2 text-xl font-black sm:text-2xl">
                   <Trophy className="h-6 w-6 text-orange-600" />
                   {sectionTitle}
                 </CardTitle>
-
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(event) => setSearch(event.target.value)}
                     placeholder={`Search ${teamFilter.toLowerCase()} server`}
                     className="w-full sm:max-w-xs"
                   />
@@ -618,21 +498,21 @@ export default function BillBoosterLiveScoreboard() {
                 </div>
               )}
 
-              {(stageFilter === "Stage 2" ? filteredRows : filteredRows.slice(0, 5)).map((row, index) => (
+              {visibleCards.map((row, index) => (
                 <motion.div
                   key={`${row.server}-${row.teamRank}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(row.teamRank)}`}
+                  className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(
+                    row.teamRank,
+                  )}`}
                 >
                   <div className="text-lg font-black text-slate-900 sm:text-xl">
                     {rankBadge(row.teamRank)}
                   </div>
                   <div>
-                    <div className="text-base font-bold text-slate-900 sm:text-lg">
-                      {row.server}
-                    </div>
+                    <div className="text-base font-bold text-slate-900 sm:text-lg">{row.server}</div>
                     <div className="text-sm text-slate-500">{row.shift}</div>
                   </div>
                   <div className="text-left text-xl font-black text-orange-600 sm:text-right sm:text-2xl">
@@ -653,7 +533,6 @@ export default function BillBoosterLiveScoreboard() {
                 {teamFilter} Quick View
               </CardTitle>
             </CardHeader>
-
             <CardContent className="space-y-4 p-4">
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <div className="text-sm font-bold uppercase tracking-wide text-emerald-700">
@@ -675,7 +554,7 @@ export default function BillBoosterLiveScoreboard() {
                 <p className="mt-2 text-sm text-slate-700">
                   {stageFilter === "Stage 1"
                     ? `Rankings at ${VENUE_NAME} are based on average check, not total sales. Top 3 from each team qualify for Stage 2.`
-                    : `Stage 2 shows only qualified servers. Rank #1 in Full Time and Rank #1 in Part Time become the winners.`}
+                    : `Stage 2 shows only qualified servers. The highest average in each team wins.`}
                 </p>
               </div>
 
@@ -691,84 +570,84 @@ export default function BillBoosterLiveScoreboard() {
           </Card>
         </div>
 
-        <Card className="rounded-3xl border-orange-200 bg-white/85 shadow-xl">
-          <CardHeader className="px-4 pt-4">
-            <CardTitle className="flex items-center gap-2 text-xl font-black sm:text-2xl">
-              <Medal className="h-6 w-6 text-orange-600" />
-              {teamFilter} Rankings
-            </CardTitle>
-          </CardHeader>
+        {stageFilter === "Stage 1" && (
+          <Card className="rounded-3xl border-orange-200 bg-white/85 shadow-xl">
+            <CardHeader className="px-4 pt-4">
+              <CardTitle className="flex items-center gap-2 text-xl font-black sm:text-2xl">
+                <Medal className="h-6 w-6 text-orange-600" />
+                {teamFilter} Rankings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
+                  <thead>
+                    <tr className="text-left text-sm uppercase tracking-wide text-slate-500">
+                      <th className="px-4">Rank</th>
+                      <th className="px-4">Server</th>
+                      <th className="px-4">Team</th>
+                      <th className="px-4 text-right">Avg Check</th>
+                      <th className="px-4 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => (
+                      <motion.tr
+                        key={`${row.server}-table-${row.teamRank}`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.02 }}
+                        className={`rounded-2xl border bg-gradient-to-r ${rowGlow(row.teamRank)}`}
+                      >
+                        <td className="rounded-l-2xl border-y border-l px-4 py-4 font-black text-slate-900">
+                          {rankBadge(row.teamRank)}
+                        </td>
+                        <td className="border-y px-4 py-4 font-semibold text-slate-900">{row.server}</td>
+                        <td className="border-y px-4 py-4 text-slate-600">{row.shift || "—"}</td>
+                        <td className="border-y px-4 py-4 text-right font-black text-orange-600">
+                          ${safeNumber(row.avg).toFixed(2)}
+                        </td>
+                        <td className="rounded-r-2xl border-y border-r px-4 py-4 text-right font-semibold text-slate-700">
+                          {statusLabel(row.teamRank)}
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          <CardContent className="p-4">
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[760px] border-separate border-spacing-y-3">
-                <thead>
-                  <tr className="text-left text-sm uppercase tracking-wide text-slate-500">
-                    <th className="px-4">Rank</th>
-                    <th className="px-4">Server</th>
-                    <th className="px-4">Team</th>
-                    <th className="px-4 text-right">Avg Check</th>
-                    <th className="px-4 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <motion.tr
-                      key={`${row.server}-table-${row.teamRank}`}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.02 }}
-                      className={`rounded-2xl border bg-gradient-to-r ${rowGlow(row.teamRank)}`}
-                    >
-                      <td className="rounded-l-2xl border-y border-l px-4 py-4 font-black text-slate-900">
-                        {rankBadge(row.teamRank)}
-                      </td>
-                      <td className="border-y px-4 py-4 font-semibold text-slate-900">{row.server}</td>
-                      <td className="border-y px-4 py-4 text-slate-600">{row.shift}</td>
-                      <td className="border-y px-4 py-4 text-right font-black text-orange-600">
-                        ${safeNumber(row.avg).toFixed(2)}
-                      </td>
-                      <td className="rounded-r-2xl border-y border-r px-4 py-4 text-right font-semibold text-slate-700">
-                        {statusLabel(row.teamRank)}
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="space-y-3 lg:hidden">
-              {filteredRows.map((row, index) => (
-                <motion.div
-                  key={`${row.server}-mobile-${row.teamRank}`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.02 }}
-                  className={`rounded-2xl border bg-gradient-to-r p-4 ${rowGlow(row.teamRank)}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-lg font-black text-slate-900">
-                        {rankBadge(row.teamRank)}
+              <div className="space-y-3 lg:hidden">
+                {filteredRows.map((row, index) => (
+                  <motion.div
+                    key={`${row.server}-mobile-${row.teamRank}`}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.02 }}
+                    className={`rounded-2xl border bg-gradient-to-r p-4 ${rowGlow(row.teamRank)}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-black text-slate-900">{rankBadge(row.teamRank)}</div>
+                        <div className="mt-1 text-base font-bold text-slate-900">{row.server}</div>
+                        <div className="text-sm text-slate-500">{row.shift || "—"}</div>
                       </div>
-                      <div className="mt-1 text-base font-bold text-slate-900">{row.server}</div>
-                      <div className="text-sm text-slate-500">{row.shift}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xl font-black text-orange-600">
-                        ${safeNumber(row.avg).toFixed(2)}
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-slate-700">
-                        {statusLabel(row.teamRank)}
+                      <div className="text-right">
+                        <div className="text-xl font-black text-orange-600">
+                          ${safeNumber(row.avg).toFixed(2)}
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-700">
+                          {statusLabel(row.teamRank)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
 }
+
