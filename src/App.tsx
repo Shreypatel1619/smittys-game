@@ -1,4 +1,4 @@
- import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Trophy,
@@ -12,8 +12,9 @@ import {
   Users,
 } from "lucide-react";
 
+const GOOGLE_SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCVpIe1SLclYRteLHwaK2eCpmoua4rm7oaCIgd5h0MpKynAGZJoVWACexAeSGDMVn0u24Nf4O9Y_F8/pub?gid=1052393092&single=true&output=csv";
 
-const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCVpIe1SLclYRteLHwaK2eCpmoua4rm7oaCIgd5h0MpKynAGZJoVWACexAeSGDMVn0u24Nf4O9Y_F8/pub?gid=1052393092&single=true&output=csv";
 const DEFAULT_TARGET = 32;
 const DEFAULT_STAGE = "April 1–19 • Stage 1";
 const GAME_NAME = "Smitty's Red Hot Sales Showdown";
@@ -95,12 +96,6 @@ const Button = ({
   </button>
 );
 
-const Input = ({
-  className = "",
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & {
-  className?: string;
-}) => <input {...props} className={className} />;
 type CsvRow = Record<string, string>;
 
 type Row = {
@@ -220,11 +215,20 @@ function buildFallbackRows(): Row[] {
   ];
 }
 
+function getStage1TopThree(rows: Row[], team: TeamFilter): Row[] {
+  return rows
+    .filter((row) => row.stage === "Stage 1" && row.shift === team)
+    .sort((a, b) => {
+      if (b.avg !== a.avg) return b.avg - a.avg;
+      return a.server.localeCompare(b.server);
+    })
+    .slice(0, 3);
+}
+
 export default function BillBoosterLiveScoreboard() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState<TeamFilter>("Full Time");
   const [stageFilter, setStageFilter] = useState<StageFilter>("Stage 1");
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleString());
@@ -260,10 +264,11 @@ export default function BillBoosterLiveScoreboard() {
         .filter((row) => row.server && row.shift && row.stage);
 
       setRows(parsed.length ? parsed : buildFallbackRows());
-      const sheetUpdatedAt =
-  parsed.find((row) => row.updated_at)?.updated_at || new Date().toLocaleString();
 
-setLastUpdated(sheetUpdatedAt);
+      const sheetUpdatedAt =
+        parsed.find((row) => row.updated_at)?.updated_at || new Date().toLocaleString();
+
+      setLastUpdated(sheetUpdatedAt);
     } catch (err) {
       setRows(buildFallbackRows());
       setError(err instanceof Error ? err.message : "Unable to load live data.");
@@ -290,9 +295,19 @@ setLastUpdated(sheetUpdatedAt);
           if (b.avg !== a.avg) return b.avg - a.avg;
           return a.server.localeCompare(b.server);
         })
-        .slice(0, 3); // ✅ FIX: only top 3 qualify
+        .slice(0, 3);
 
-      return qualified.map((row, index) => ({
+      const fallbackQualified =
+        qualified.length > 0
+          ? qualified
+          : getStage1TopThree(rows, teamFilter).map((row) => ({
+              ...row,
+              avg: 0,
+              status: "",
+              stage: "Stage 2",
+            }));
+
+      return fallbackQualified.map((row, index) => ({
         ...row,
         teamRank: index + 1,
       }));
@@ -324,11 +339,9 @@ setLastUpdated(sheetUpdatedAt);
       ...row,
       teamRank: index + 1,
     }));
-  }, [stageRows, stageFilter, teamFilter]);
+  }, [rows, stageRows, stageFilter, teamFilter]);
 
-  const filteredRows = useMemo(() => {
-    return teamRows.filter((row) => row.server.toLowerCase().includes(search.toLowerCase()));
-  }, [teamRows, search]);
+  const filteredRows = teamRows;
 
   const champion = teamRows[0];
   const stageBannerText =
@@ -507,7 +520,8 @@ setLastUpdated(sheetUpdatedAt);
                       {champion.server}
                     </div>
                     <div className="text-slate-600">
-                      Leading the {teamFilter} challenge at {VENUE_NAME} with the highest live average check.
+                      Leading the {teamFilter} challenge at {VENUE_NAME} with the highest live
+                      average check.
                     </div>
                   </div>
                 </div>
@@ -533,20 +547,6 @@ setLastUpdated(sheetUpdatedAt);
                   <Trophy className="h-6 w-6 text-orange-600" />
                   {sectionTitle}
                 </CardTitle>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder={`Search ${teamFilter.toLowerCase()} server`}
-                    className="w-full sm:max-w-xs"
-                  />
-                  <Button
-                    onClick={loadData}
-                    className="min-h-11 rounded-2xl bg-orange-600 text-white hover:bg-orange-700"
-                  >
-                    Refresh
-                  </Button>
-                </div>
               </div>
             </CardHeader>
 
@@ -565,14 +565,16 @@ setLastUpdated(sheetUpdatedAt);
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
                   className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(
-                    row.teamRank,
+                    row.teamRank
                   )}`}
                 >
                   <div className="text-lg font-black text-slate-900 sm:text-xl">
                     {rankBadge(row.teamRank)}
                   </div>
                   <div>
-                    <div className="text-base font-bold text-slate-900 sm:text-lg">{row.server}</div>
+                    <div className="text-base font-bold text-slate-900 sm:text-lg">
+                      {row.server}
+                    </div>
                     <div className="text-sm text-slate-500">{row.shift}</div>
                   </div>
                   <div className="text-left text-xl font-black text-orange-600 sm:text-right sm:text-2xl">
@@ -623,7 +625,8 @@ setLastUpdated(sheetUpdatedAt);
                   Best Upsell Reminder
                 </div>
                 <p className="mt-2 text-sm text-slate-700">
-                  Suggest one food upgrade and one drink add-on at every table at Smitty&apos;s at Market Mall.
+                  Suggest one food upgrade and one drink add-on at every table at Smitty&apos;s at
+                  Market Mall.
                 </p>
               </div>
             </CardContent>
@@ -662,7 +665,9 @@ setLastUpdated(sheetUpdatedAt);
                         <td className="rounded-l-2xl border-y border-l px-4 py-4 font-black text-slate-900">
                           {rankBadge(row.teamRank)}
                         </td>
-                        <td className="border-y px-4 py-4 font-semibold text-slate-900">{row.server}</td>
+                        <td className="border-y px-4 py-4 font-semibold text-slate-900">
+                          {row.server}
+                        </td>
                         <td className="border-y px-4 py-4 text-slate-600">{row.shift || "—"}</td>
                         <td className="border-y px-4 py-4 text-right font-black text-orange-600">
                           ${safeNumber(row.avg).toFixed(2)}
@@ -687,7 +692,9 @@ setLastUpdated(sheetUpdatedAt);
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-lg font-black text-slate-900">{rankBadge(row.teamRank)}</div>
+                        <div className="text-lg font-black text-slate-900">
+                          {rankBadge(row.teamRank)}
+                        </div>
                         <div className="mt-1 text-base font-bold text-slate-900">{row.server}</div>
                         <div className="text-sm text-slate-500">{row.shift || "—"}</div>
                       </div>
