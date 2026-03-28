@@ -11,11 +11,9 @@ import {
   Star,
   Users,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 
-const GOOGLE_SHEET_CSV_URL = "PASTE_YOUR_PUBLISHED_GOOGLE_SHEET_CSV_URL_HERE";
+
+const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCVpIe1SLclYRteLHwaK2eCpmoua4rm7oaCIgd5h0MpKynAGZJoVWACexAeSGDMVn0u24Nf4O9Y_F8/pubhtml?gid=1052393092&single=true";
 const DEFAULT_TARGET = 45;
 const DEFAULT_STAGE = "April 1–19 • Stage 1";
 const GAME_NAME = "Smitty's Red Hot Sales Showdown";
@@ -46,6 +44,63 @@ const PART_TIME_SERVERS = [
   "TJ",
 ];
 
+const Card = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div
+    className={`rounded-3xl border border-white/60 bg-white/90 shadow-[0_10px_35px_rgba(0,0,0,0.08)] backdrop-blur ${className}`}
+  >
+    {children}
+  </div>
+);
+
+const CardContent = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={className}>{children}</div>;
+
+const CardHeader = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={className}>{children}</div>;
+
+const CardTitle = ({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => <div className={className}>{children}</div>;
+
+const Button = ({
+  children,
+  className = "",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <button {...props} className={className}>
+    {children}
+  </button>
+);
+
+const Input = ({
+  className = "",
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  className?: string;
+}) => <input {...props} className={className} />;
 type CsvRow = Record<string, string>;
 
 type Row = {
