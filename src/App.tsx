@@ -265,10 +265,11 @@ export default function BillBoosterLiveScoreboard() {
 
       setRows(parsed.length ? parsed : buildFallbackRows());
 
-      const sheetUpdatedAt =
-        parsed.find((row) => row.updated_at)?.updated_at || new Date().toLocaleString();
+      const sheetUpdatedAt = parsed.find((row) => row.updated_at)?.updated_at?.trim();
 
-      setLastUpdated(sheetUpdatedAt);
+if (sheetUpdatedAt) {
+  setLastUpdated(sheetUpdatedAt);
+}
     } catch (err) {
       setRows(buildFallbackRows());
       setError(err instanceof Error ? err.message : "Unable to load live data.");
