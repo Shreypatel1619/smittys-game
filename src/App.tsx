@@ -110,6 +110,7 @@ type Row = {
   status: string;
   shift: string;
   stage: string;
+  updated_at?: string;
 };
 
 type RankedRow = Row & {
@@ -254,11 +255,15 @@ export default function BillBoosterLiveScoreboard() {
           status: (row.status || "").trim(),
           shift: (row.shift || "").trim(),
           stage: (row.stage || "Stage 1").trim(),
+          updated_at: (row.updated_at || "").trim(),
         }))
         .filter((row) => row.server && row.shift && row.stage);
 
       setRows(parsed.length ? parsed : buildFallbackRows());
-      setLastUpdated(new Date().toLocaleString());
+      const sheetUpdatedAt =
+  parsed.find((row) => row.updated_at)?.updated_at || new Date().toLocaleString();
+
+setLastUpdated(sheetUpdatedAt);
     } catch (err) {
       setRows(buildFallbackRows());
       setError(err instanceof Error ? err.message : "Unable to load live data.");
