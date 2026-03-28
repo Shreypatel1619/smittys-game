@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 
-const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCVpIe1SLclYRteLHwaK2eCpmoua4rm7oaCIgd5h0MpKynAGZJoVWACexAeSGDMVn0u24Nf4O9Y_F8/pubhtml?gid=1052393092&single=true";
+const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCVpIe1SLclYRteLHwaK2eCpmoua4rm7oaCIgd5h0MpKynAGZJoVWACexAeSGDMVn0u24Nf4O9Y_F8/pub?gid=1052393092&single=true&output=csv";
 const DEFAULT_TARGET = 45;
 const DEFAULT_STAGE = "April 1–19 • Stage 1";
 const GAME_NAME = "Smitty's Red Hot Sales Showdown";
