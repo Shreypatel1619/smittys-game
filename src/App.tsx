@@ -472,7 +472,7 @@ export default function BillBoosterLiveScoreboard() {
                       Last Updated
                     </div>
                     <div className="text-xs font-semibold leading-5 text-slate-900 sm:text-sm">
-                      {lastUpdated || "Waiting for data update..."}
+                      {lastUpdated || "Waiting for sheet update..."}
                     </div>
                   </div>
                 </CardContent>
@@ -731,10 +731,25 @@ export default function BillBoosterLiveScoreboard() {
             </CardContent>
           </Card>
         )}
+              <motion.footer
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+          className="pt-2"
+        >
+          <div className="mx-auto flex w-full max-w-7xl justify-center">
+            <div className="rounded-full border border-red-200 bg-white/85 px-5 py-3 shadow-lg backdrop-blur">
+              <p className="text-sm font-semibold tracking-wide text-slate-600">
+                <span className="text-red-500">•</span>{" "}
+                <span className="bg-gradient-to-r from-red-600 via-rose-500 to-orange-500 bg-clip-text font-black text-transparent">
+                  design by Shrey Patel
+                </span>{" "}
+                <span className="text-red-500">•</span>
+              </p>
+            </div>
+          </div>
+        </motion.footer>
       </div>
     </div>
   );
 }
-
-
-
