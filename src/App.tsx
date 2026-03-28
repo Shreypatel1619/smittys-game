@@ -472,7 +472,7 @@ export default function BillBoosterLiveScoreboard() {
                       Last Updated
                     </div>
                     <div className="text-xs font-semibold leading-5 text-slate-900 sm:text-sm">
-                      {lastUpdated || "Waiting for sheet update..."}
+                      {lastUpdated || "Waiting for data update..."}
                     </div>
                   </div>
                 </CardContent>
