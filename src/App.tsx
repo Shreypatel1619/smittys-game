@@ -231,12 +231,15 @@ export default function BillBoosterLiveScoreboard() {
   const [error, setError] = useState("");
   const [teamFilter, setTeamFilter] = useState<TeamFilter>("Full Time");
   const [stageFilter, setStageFilter] = useState<StageFilter>("Stage 1");
-  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleString());
+  const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const loadData = async () => {
     if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes("PASTE_YOUR")) {
-      setRows(buildFallbackRows());
-      setLastUpdated(new Date().toLocaleString());
+      if (!hasLoadedOnce) {
+        setRows(buildFallbackRows());
+        setLastUpdated("");
+      }
       setError("");
       return;
     }
@@ -245,7 +248,10 @@ export default function BillBoosterLiveScoreboard() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: "no-store" });
+      const response = await fetch(GOOGLE_SHEET_CSV_URL, {
+        cache: "no-store",
+      });
+
       if (!response.ok) {
         throw new Error(`Could not load live data (${response.status})`);
       }
@@ -263,16 +269,20 @@ export default function BillBoosterLiveScoreboard() {
         }))
         .filter((row) => row.server && row.shift && row.stage);
 
-      setRows(parsed.length ? parsed : buildFallbackRows());
+      if (parsed.length > 0) {
+        setRows(parsed);
+        setHasLoadedOnce(true);
 
-      const sheetUpdatedAt = parsed.find((row) => row.updated_at)?.updated_at?.trim();
-
-if (sheetUpdatedAt) {
-  setLastUpdated(sheetUpdatedAt);
-}
+        const sheetUpdatedAt = parsed.find((row) => row.updated_at)?.updated_at?.trim();
+        if (sheetUpdatedAt) {
+          setLastUpdated(sheetUpdatedAt);
+        }
+      }
     } catch (err) {
-      setRows(buildFallbackRows());
       setError(err instanceof Error ? err.message : "Unable to load live data.");
+      if (!hasLoadedOnce) {
+        setRows(buildFallbackRows());
+      }
     } finally {
       setLoading(false);
     }
@@ -282,7 +292,7 @@ if (sheetUpdatedAt) {
     loadData();
     const interval = window.setInterval(loadData, 60000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [hasLoadedOnce]);
 
   const stageRows = useMemo(() => {
     return rows.filter((row) => row.stage === stageFilter);
@@ -343,8 +353,8 @@ if (sheetUpdatedAt) {
   }, [rows, stageRows, stageFilter, teamFilter]);
 
   const filteredRows = teamRows;
-
   const champion = teamRows[0];
+
   const stageBannerText =
     stageFilter === "Stage 1"
       ? `${STAGE_1_DATES} • Opening Round • Top 3 from each team qualify`
@@ -389,7 +399,7 @@ if (sheetUpdatedAt) {
               <div className="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
                 <Button
                   onClick={() => setStageFilter("Stage 1")}
-                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold transition-all duration-200 ${
                     stageFilter === "Stage 1"
                       ? "bg-slate-900 text-white hover:bg-slate-800"
                       : "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
@@ -400,7 +410,7 @@ if (sheetUpdatedAt) {
 
                 <Button
                   onClick={() => setStageFilter("Stage 2")}
-                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold transition-all duration-200 ${
                     stageFilter === "Stage 2"
                       ? "bg-slate-900 text-white hover:bg-slate-800"
                       : "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
@@ -411,24 +421,24 @@ if (sheetUpdatedAt) {
 
                 <Button
                   onClick={() => setTeamFilter("Full Time")}
-                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold transition-all duration-200 ${
                     teamFilter === "Full Time"
                       ? "bg-red-600 text-white hover:bg-red-700"
                       : "border border-red-200 bg-white text-red-700 hover:bg-red-50"
                   }`}
                 >
-                  <Users className="mr-2 h-4 w-4" /> Full Time Team
+                  <Users className="mr-2 inline h-4 w-4" /> Full Time Team
                 </Button>
 
                 <Button
                   onClick={() => setTeamFilter("Part Time")}
-                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold ${
+                  className={`min-h-11 rounded-2xl px-4 py-2 text-sm font-bold transition-all duration-200 ${
                     teamFilter === "Part Time"
                       ? "bg-red-600 text-white hover:bg-red-700"
                       : "border border-red-200 bg-white text-red-700 hover:bg-red-50"
                   }`}
                 >
-                  <Users className="mr-2 h-4 w-4" /> Part Time Team
+                  <Users className="mr-2 inline h-4 w-4" /> Part Time Team
                 </Button>
 
                 <div className="rounded-2xl border border-red-100 bg-white/90 px-4 py-3 text-xs font-semibold text-slate-700 shadow-sm sm:text-sm">
@@ -462,7 +472,7 @@ if (sheetUpdatedAt) {
                       Last Updated
                     </div>
                     <div className="text-xs font-semibold leading-5 text-slate-900 sm:text-sm">
-                      {lastUpdated}
+                      {lastUpdated || "Waiting for sheet update..."}
                     </div>
                   </div>
                 </CardContent>
@@ -470,8 +480,12 @@ if (sheetUpdatedAt) {
 
               <Card className="rounded-2xl border-red-200 bg-white shadow-sm">
                 <CardContent className="flex items-start gap-3 p-3 sm:items-center sm:p-4">
-                  <span className="text-xl">📈</span>
-                  <TrendingUp className="h-5 w-5 text-red-600" />
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs font-bold uppercase tracking-wide text-green-700">
+                      Live
+                    </span>
+                  </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
                       Servers Ranked
@@ -506,7 +520,7 @@ if (sheetUpdatedAt) {
         </motion.div>
 
         {champion && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="overflow-hidden rounded-3xl border-2 border-red-300 bg-gradient-to-r from-red-100 via-rose-50 to-orange-100 shadow-xl">
               <CardContent className="flex flex-col gap-4 p-4 sm:p-5 md:p-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-4">
@@ -521,8 +535,7 @@ if (sheetUpdatedAt) {
                       {champion.server}
                     </div>
                     <div className="text-slate-600">
-                      Leading the {teamFilter} challenge at {VENUE_NAME} with the highest live
-                      average check.
+                      Leading the {teamFilter} challenge at {VENUE_NAME} with the highest live average check.
                     </div>
                   </div>
                 </div>
@@ -552,7 +565,9 @@ if (sheetUpdatedAt) {
             </CardHeader>
 
             <CardContent className="space-y-3 p-4">
-              {loading && <div className="text-sm text-slate-500">Refreshing live scores...</div>}
+              {loading && (
+                <div className="text-xs font-semibold text-orange-600">Updating live scores...</div>
+              )}
               {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {error}
@@ -562,9 +577,10 @@ if (sheetUpdatedAt) {
               {visibleCards.map((row, index) => (
                 <motion.div
                   key={`${row.server}-${row.teamRank}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, delay: index * 0.03 }}
                   className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(
                     row.teamRank
                   )}`}
@@ -626,8 +642,7 @@ if (sheetUpdatedAt) {
                   Best Upsell Reminder
                 </div>
                 <p className="mt-2 text-sm text-slate-700">
-                  Suggest one food upgrade and one drink add-on at every table at Smitty&apos;s at
-                  Market Mall.
+                  Suggest one food upgrade and one drink add-on at every table at Smitty&apos;s at Market Mall.
                 </p>
               </div>
             </CardContent>
@@ -658,9 +673,10 @@ if (sheetUpdatedAt) {
                     {filteredRows.map((row, index) => (
                       <motion.tr
                         key={`${row.server}-table-${row.teamRank}`}
+                        layout
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.02 }}
+                        transition={{ duration: 0.25, delay: index * 0.02 }}
                         className={`rounded-2xl border bg-gradient-to-r ${rowGlow(row.teamRank)}`}
                       >
                         <td className="rounded-l-2xl border-y border-l px-4 py-4 font-black text-slate-900">
@@ -686,9 +702,10 @@ if (sheetUpdatedAt) {
                 {filteredRows.map((row, index) => (
                   <motion.div
                     key={`${row.server}-mobile-${row.teamRank}`}
+                    layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.02 }}
+                    transition={{ duration: 0.25, delay: index * 0.02 }}
                     className={`rounded-2xl border bg-gradient-to-r p-4 ${rowGlow(row.teamRank)}`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -718,5 +735,6 @@ if (sheetUpdatedAt) {
     </div>
   );
 }
+
 
 
