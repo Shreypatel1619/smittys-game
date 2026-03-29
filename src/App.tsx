@@ -457,7 +457,7 @@ export default function BillBoosterLiveScoreboard() {
                       Today Target
                     </div>
                     <div className="text-lg font-bold text-slate-900 sm:text-xl">
-                      ${DEFAULT_TARGET.toFixed(0)}
+                      ${DEFAULT_TARGET.toFixed(0)}/check
                     </div>
                   </div>
                 </CardContent>
