@@ -10,6 +10,8 @@ import {
   Crown,
   Star,
   Users,
+  Award,
+  Zap,
 } from "lucide-react";
 
 const GOOGLE_SHEET_CSV_URL =
@@ -187,11 +189,20 @@ function statusLabel(rank: number) {
 }
 
 function rowGlow(rank: number) {
-  if (rank === 1) return "from-yellow-100 to-orange-100 border-yellow-300";
+  if (rank === 1) {
+    return "from-yellow-100 via-orange-100 to-red-100 border-yellow-300 shadow-[0_0_0_1px_rgba(251,191,36,0.15),0_12px_30px_rgba(251,146,60,0.22)]";
+  }
   if (rank === 2) return "from-slate-100 to-slate-50 border-slate-300";
   if (rank === 3) return "from-amber-50 to-yellow-50 border-amber-200";
   if (rank <= 5) return "from-emerald-50 to-white border-emerald-200";
   return "from-white to-white border-slate-200";
+}
+
+function crownGlow(rank: number) {
+  if (rank === 1) return "text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.55)]";
+  if (rank === 2) return "text-slate-500";
+  if (rank === 3) return "text-amber-600";
+  return "text-slate-400";
 }
 
 function buildFallbackRows(): Row[] {
@@ -248,10 +259,7 @@ export default function BillBoosterLiveScoreboard() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(GOOGLE_SHEET_CSV_URL, {
-        cache: "no-store",
-      });
-
+      const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: "no-store" });
       if (!response.ok) {
         throw new Error(`Could not load live data (${response.status})`);
       }
@@ -272,7 +280,6 @@ export default function BillBoosterLiveScoreboard() {
       if (parsed.length > 0) {
         setRows(parsed);
         setHasLoadedOnce(true);
-
         const sheetUpdatedAt = parsed.find((row) => row.updated_at)?.updated_at?.trim();
         if (sheetUpdatedAt) {
           setLastUpdated(sheetUpdatedAt);
@@ -294,9 +301,10 @@ export default function BillBoosterLiveScoreboard() {
     return () => window.clearInterval(interval);
   }, [hasLoadedOnce]);
 
-  const stageRows = useMemo(() => {
-    return rows.filter((row) => row.stage === stageFilter);
-  }, [rows, stageFilter]);
+  const stageRows = useMemo(
+    () => rows.filter((row) => row.stage === stageFilter),
+    [rows, stageFilter]
+  );
 
   const teamRows = useMemo<RankedRow[]>(() => {
     if (stageFilter === "Stage 2") {
@@ -352,20 +360,16 @@ export default function BillBoosterLiveScoreboard() {
     }));
   }, [rows, stageRows, stageFilter, teamFilter]);
 
-  const filteredRows = teamRows;
   const champion = teamRows[0];
-
+  const visibleCards = stageFilter === "Stage 2" ? teamRows : teamRows.slice(0, 5);
   const stageBannerText =
     stageFilter === "Stage 1"
       ? `${STAGE_1_DATES} • Opening Round • Top 3 from each team qualify`
       : `${STAGE_2_DATES} • Qualified servers battle for the win`;
-
   const sectionTitle =
     stageFilter === "Stage 2"
       ? `${teamFilter} Qualified Servers`
       : `${teamFilter} Top Performers`;
-
-  const visibleCards = stageFilter === "Stage 2" ? filteredRows : filteredRows.slice(0, 5);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-rose-50 to-orange-50 px-3 py-4 sm:px-4 md:p-8">
@@ -522,14 +526,37 @@ export default function BillBoosterLiveScoreboard() {
         {champion && (
           <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="overflow-hidden rounded-3xl border-2 border-red-300 bg-gradient-to-r from-red-100 via-rose-50 to-orange-100 shadow-xl">
-              <CardContent className="flex flex-col gap-4 p-4 sm:p-5 md:p-6 lg:flex-row lg:items-center lg:justify-between">
+              <CardContent className="relative flex flex-col gap-4 p-4 sm:p-5 md:p-6 lg:flex-row lg:items-center lg:justify-between">
+                <motion.div
+                  animate={{ opacity: [0.25, 0.6, 0.25], scale: [1, 1.04, 1] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                  className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-orange-300/30 blur-2xl"
+                />
+
                 <div className="flex items-center gap-4">
-                  <div className="rounded-2xl bg-white/80 p-3 shadow">
-                    <Crown className="h-10 w-10 text-red-600" />
-                  </div>
+                  <motion.div
+                    animate={
+                      champion.teamRank === 1
+                        ? { y: [0, -4, 0], rotate: [0, -3, 3, 0] }
+                        : { y: 0, rotate: 0 }
+                    }
+                    transition={{ duration: 2.4, repeat: Infinity }}
+                    className="rounded-2xl bg-white/80 p-3 shadow"
+                  >
+                    <Crown className={`h-10 w-10 ${crownGlow(champion.teamRank)}`} />
+                  </motion.div>
                   <div>
-                    <div className="text-sm font-bold uppercase tracking-[0.25em] text-red-700">
-                      {GAME_NAME} Champion 👑
+                    <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.25em] text-red-700">
+                      <span>{GAME_NAME} Champion</span>
+                      {champion.teamRank === 1 && (
+                        <motion.span
+                          animate={{ opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 1.2, repeat: Infinity }}
+                          className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 text-[10px] tracking-[0.18em] text-orange-700"
+                        >
+                          <Flame className="h-3 w-3" /> HOT
+                        </motion.span>
+                      )}
                     </div>
                     <div className="text-2xl font-black text-slate-900 sm:text-3xl">
                       {champion.server}
@@ -540,12 +567,23 @@ export default function BillBoosterLiveScoreboard() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl bg-white px-4 py-3 text-center shadow sm:px-6 sm:py-4">
-                  <div className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                    Avg Check
-                  </div>
-                  <div className="text-3xl font-black text-red-600 sm:text-4xl">
-                    ${safeNumber(champion.avg).toFixed(2)}
+                <div className="flex items-center gap-3">
+                  {champion.teamRank === 1 && (
+                    <motion.div
+                      animate={{ opacity: [0.35, 1, 0.35], y: [0, -3, 0] }}
+                      transition={{ duration: 1.3, repeat: Infinity }}
+                      className="hidden rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 p-3 text-white shadow-lg sm:flex"
+                    >
+                      <Flame className="h-6 w-6" />
+                    </motion.div>
+                  )}
+                  <div className="rounded-2xl bg-white px-4 py-3 text-center shadow sm:px-6 sm:py-4">
+                    <div className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                      Avg Check
+                    </div>
+                    <div className="text-3xl font-black text-red-600 sm:text-4xl">
+                      ${safeNumber(champion.avg).toFixed(2)}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -581,23 +619,46 @@ export default function BillBoosterLiveScoreboard() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.25, delay: index * 0.03 }}
-                  className={`grid grid-cols-1 gap-3 rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(
+                  className={`relative grid grid-cols-1 gap-3 overflow-hidden rounded-2xl border bg-gradient-to-r p-4 sm:grid-cols-[90px_1fr_140px_120px] sm:items-center ${rowGlow(
                     row.teamRank
                   )}`}
                 >
-                  <div className="text-lg font-black text-slate-900 sm:text-xl">
+                  {row.teamRank === 1 && (
+                    <motion.div
+                      animate={{ opacity: [0.18, 0.45, 0.18], x: [0, 8, 0] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-orange-300/40 to-transparent"
+                    />
+                  )}
+
+                  <div className="flex items-center gap-2 text-lg font-black text-slate-900 sm:text-xl">
                     {rankBadge(row.teamRank)}
+                    {row.teamRank === 1 && (
+                      <motion.span
+                        animate={{ scale: [1, 1.15, 1], opacity: [0.6, 1, 0.6] }}
+                        transition={{ duration: 1.3, repeat: Infinity }}
+                        className="inline-flex text-orange-500"
+                      >
+                        <Flame className="h-5 w-5" />
+                      </motion.span>
+                    )}
                   </div>
                   <div>
-                    <div className="text-base font-bold text-slate-900 sm:text-lg">
+                    <div className="flex items-center gap-2 text-base font-bold text-slate-900 sm:text-lg">
                       {row.server}
+                      {row.teamRank === 1 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700">
+                          <Award className="h-3 w-3" /> Leader
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-slate-500">{row.shift}</div>
                   </div>
                   <div className="text-left text-xl font-black text-orange-600 sm:text-right sm:text-2xl">
                     ${safeNumber(row.avg).toFixed(2)}
                   </div>
-                  <div className="text-left text-sm font-semibold text-slate-700 sm:text-right">
+                  <div className="flex items-center gap-2 text-left text-sm font-semibold text-slate-700 sm:justify-end sm:text-right">
+                    {row.teamRank <= 3 && <Zap className="h-4 w-4 text-orange-500" />}
                     {statusLabel(row.teamRank)}
                   </div>
                 </motion.div>
@@ -670,7 +731,7 @@ export default function BillBoosterLiveScoreboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRows.map((row, index) => (
+                    {teamRows.map((row, index) => (
                       <motion.tr
                         key={`${row.server}-table-${row.teamRank}`}
                         layout
@@ -699,7 +760,7 @@ export default function BillBoosterLiveScoreboard() {
               </div>
 
               <div className="space-y-3 lg:hidden">
-                {filteredRows.map((row, index) => (
+                {teamRows.map((row, index) => (
                   <motion.div
                     key={`${row.server}-mobile-${row.teamRank}`}
                     layout
@@ -710,9 +771,7 @@ export default function BillBoosterLiveScoreboard() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-lg font-black text-slate-900">
-                          {rankBadge(row.teamRank)}
-                        </div>
+                        <div className="text-lg font-black text-slate-900">{rankBadge(row.teamRank)}</div>
                         <div className="mt-1 text-base font-bold text-slate-900">{row.server}</div>
                         <div className="text-sm text-slate-500">{row.shift || "—"}</div>
                       </div>
@@ -731,7 +790,8 @@ export default function BillBoosterLiveScoreboard() {
             </CardContent>
           </Card>
         )}
-              <motion.footer
+
+        <motion.footer
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.15 }}
@@ -753,3 +813,4 @@ export default function BillBoosterLiveScoreboard() {
     </div>
   );
 }
+
