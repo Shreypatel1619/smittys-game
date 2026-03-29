@@ -15,7 +15,7 @@ import {
 const GOOGLE_SHEET_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRCVpIe1SLclYRteLHwaK2eCpmoua4rm7oaCIgd5h0MpKynAGZJoVWACexAeSGDMVn0u24Nf4O9Y_F8/pub?gid=1052393092&single=true&output=csv";
 
-const DEFAULT_TARGET = 32;
+const DEFAULT_TARGET = 32/check;
 const DEFAULT_STAGE = "April 1–19 • Stage 1";
 const GAME_NAME = "Smitty's Red Hot Sales Showdown";
 const VENUE_NAME = "Smitty's at Market Mall";
@@ -742,7 +742,7 @@ export default function BillBoosterLiveScoreboard() {
               <p className="text-sm font-semibold tracking-wide text-slate-600">
                 <span className="text-red-500">•</span>{" "}
                 <span className="bg-gradient-to-r from-red-600 via-rose-500 to-orange-500 bg-clip-text font-black text-transparent">
-                  design by Shrey Patel
+                  Design by Shrey Patel
                 </span>{" "}
                 <span className="text-red-500">•</span>
               </p>
